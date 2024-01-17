@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<navigation xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/nav_host"
+    app:startDestination="@id/starWarsCharactersFragment">
+
+    <fragment
+        android:id="@+id/starWarsCharactersFragment"
+        android:name="com.example.starwarsapp.star_wars_characters.ui.StarWarsCharactersFragment"
+        android:label="fragment_star_wars_characters"
+        tools:layout="@layout/fragment_star_wars_characters" >
+        <action
+            android:id="@+id/action_starWarsCharactersFragment_to_starWarsFilmsFragment"
+            app:destination="@id/starWarsFilmsFragment" />
+        <action
+            android:id="@+id/action_starWarsCharactersFragment_to_filterBottomSheet"
+            app:destination="@id/filterBottomSheet" />
+    </fragment>
+    <fragment
+        android:id="@+id/starWarsFilmsFragment"
+        android:name="com.example.starwarsapp.star_wars_films.ui.StarWarsFilmsFragment"
+        android:label="fragment_star_wars_films"
+        tools:layout="@layout/fragment_star_wars_films" />
+    <dialog
+        android:id="@+id/filterBottomSheet"
+        android:name="com.example.starwarsapp.filters.ui.FilterBottomSheet"
+        android:label="FilterBottomSheet" />
+</navigation>
