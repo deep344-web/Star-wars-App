@@ -1,11 +1,12 @@
 package com.example.starwarsapp.star_wars_characters.viewmodel
 
 import android.app.Application
-import android.util.Log
-import com.example.starwarsapp.star_wars_characters.model.People
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.starwarsapp.MyApplication
+import com.example.starwarsapp.common.DefaultDispatcher
+import com.example.starwarsapp.common.IoDispatcher
+import com.example.starwarsapp.common.OfflineHelper
+import com.example.starwarsapp.common.OfflineHelperImpl
 import com.example.starwarsapp.filters.model.FilterResponse
 import com.example.starwarsapp.filters.model.SortBy
 import com.example.starwarsapp.network_manager.di.ApiCallbackListener
@@ -13,12 +14,14 @@ import com.example.starwarsapp.network_manager.di.ErrorCodes
 import com.example.starwarsapp.network_manager.di.handleApiException
 import com.example.starwarsapp.network_manager.di.handleApiResponse
 import com.example.starwarsapp.room_db.database.StarWarsDatabase
+import com.example.starwarsapp.star_wars_characters.model.Gender
+import com.example.starwarsapp.star_wars_characters.model.People
 import com.example.starwarsapp.star_wars_characters.model.PeopleList
 import com.example.starwarsapp.star_wars_characters.model.ScreenState
 import com.example.starwarsapp.star_wars_characters.repository.StarWarsRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineExceptionHandler
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
@@ -29,10 +32,12 @@ import javax.inject.Inject
 class StarWarsCharacterViewModel @Inject constructor(
     private val starWarsRepository: StarWarsRepository,
     private val db : StarWarsDatabase,
-    private val application: Application
-): ViewModel() {
+    private val application: Application,
+    @IoDispatcher private val ioDispatcher: CoroutineDispatcher,
+    @DefaultDispatcher private val defaultDispatcher: CoroutineDispatcher,
+): ViewModel(), OfflineHelper by OfflineHelperImpl(){
 
-    var page : Int = 1
+    private var page : Int = 1
 
     private val _screenState = MutableStateFlow<ScreenState>(ScreenState.ScreenUI(loading = true))
     val screenState = _screenState.asStateFlow()
@@ -45,37 +50,25 @@ class StarWarsCharacterViewModel @Inject constructor(
     }
 
     private fun getCharactersFromRoom(){
-        viewModelScope.launch(Dispatchers.IO) {
+        viewModelScope.launch(ioDispatcher) {
             val list = db.dao.getAllCharacters()
-            _screenState.value = ScreenState.Response(ArrayList(list), MyApplication.IS_OFFLINE)
+            _screenState.value = ScreenState.Response(ArrayList(list), isOffline())
         }
     }
 
     private fun getCharacters(){
         val apiCallbackListener = object : ApiCallbackListener<PeopleList?>{
             override fun onApiSuccess(response: PeopleList?) {
-                viewModelScope.launch(Dispatchers.IO) {
-                    Log.d("characters count", db.dao.getAllCharacters().size.toString())
-                    Log.d("characters count", response?.results?.size.toString())
-
-                    response?.results?.forEach{
-                        db.dao.insertCharacter(it)
-                    }
-                    val list = db.dao.getAllCharacters()
-                    Log.d("characters count", db.dao.getAllCharacters().size.toString())
-
-                    _screenState.value = ScreenState.Response(applySortingLogic(ArrayList(list)), MyApplication.IS_OFFLINE)
-                }
+                onAPISuccess(response)
             }
 
             override fun onApiFailure(message: String, code : Int?) {
                 if(code == ErrorCodes.INTERNET_ERROR.value || code == ErrorCodes.TIME_OUT.value){
-                    MyApplication.IS_OFFLINE = true
+                    updateOffline(true)
                     getCharactersFromRoom()
                 }
                 else{
                     _screenState.value = ScreenState.ErrorState(message, code)
-
                 }
             }
         }
@@ -87,21 +80,35 @@ class StarWarsCharacterViewModel @Inject constructor(
                 )
             },
             block = {
-                withContext(Dispatchers.IO) {
-                    starWarsRepository.getAllStarWarsCharacters(page).handleApiResponse(application, apiCallbackListener)
+                withContext(ioDispatcher) {
+                    starWarsRepository.getAllStarWarsCharacters(page).fold({
+                        it.handleApiResponse(application, apiCallbackListener)
+                    },{
+                        throw it
+                    })
                 }
             }
         )
     }
 
+    private fun onAPISuccess(response: PeopleList?){
+        viewModelScope.launch(ioDispatcher) {
+            response?.results?.forEach{
+                db.dao.insertCharacter(it)
+            }
+            val list = db.dao.getAllCharacters()
+            _screenState.value = ScreenState.Response(applySortingLogic(ArrayList(list)), isOffline())
+        }
+    }
+
     private fun applySortingLogic(list : ArrayList<People>) : ArrayList<People>{
         val newList = arrayListOf<People>()
         list.forEach {
-            if(it.gender == "male" && filterResponse.value.filterMale){
+            if(it.gender == Gender.Male.value && filterResponse.value.filterMale){
                 newList.add(it)
-            } else if(it.gender == "female" && filterResponse.value.filterFemale){
+            } else if(it.gender == Gender.Female.value && filterResponse.value.filterFemale){
                 newList.add(it)
-            } else if(!it.gender.equals("female") && !it.gender.equals("male")){
+            } else if(!it.gender.equals(Gender.Female.value) && !it.gender.equals(Gender.Male.value)){
                 if(filterResponse.value.filterOthers){
                     newList.add(it)
                 }
@@ -116,7 +123,7 @@ class StarWarsCharacterViewModel @Inject constructor(
     }
 
     fun loadNextPage(){
-        if(!MyApplication.IS_OFFLINE) {
+        if(isOffline()) {
             page++
             _screenState.value = ScreenState.ScreenUI(loading = true)
             getCharacters()
@@ -129,18 +136,10 @@ class StarWarsCharacterViewModel @Inject constructor(
         updateUI()
     }
 
-    private fun deleteAllData(){
-        if(page == 1) {
-            viewModelScope.launch(Dispatchers.IO) {
-                db.dao.deleteAllData()
-            }
-        }
-    }
-
     private fun updateUI(){
-        viewModelScope.launch(Dispatchers.Default) {
+        viewModelScope.launch(defaultDispatcher) {
             val list = db.dao.getAllCharacters()
-            _screenState.value = ScreenState.Response(applySortingLogic(ArrayList(list)), MyApplication.IS_OFFLINE)
+            _screenState.value = ScreenState.Response(applySortingLogic(ArrayList(list)), isOffline())
         }
     }
 }

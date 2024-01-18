@@ -62,16 +62,17 @@
         android:layout_height="0dp"
         tools:listitem="@layout/grid_view_item"
         app:layout_constraintTop_toBottomOf="@id/internetConnectivityStatus"
-        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintBottom_toTopOf="@id/loadMoreButton"
         app:layout_constraintLeft_toLeftOf="parent"
         app:layout_constraintRight_toRightOf="parent"/>
 
     <androidx.appcompat.widget.AppCompatButton
-        android:id="@+id/load"
+        android:id="@+id/loadMoreButton"
         android:text="Load more items"
-        android:layout_width="wrap_content"
+        android:layout_width="0dp"
         android:layout_height="wrap_content"
         app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintBottom_toBottomOf="parent"/>
 
     <ProgressBar
