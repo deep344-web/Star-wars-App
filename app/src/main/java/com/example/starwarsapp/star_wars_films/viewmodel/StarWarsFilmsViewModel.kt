@@ -5,21 +5,23 @@ import android.util.Log
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.starwarsapp.MyApplication
 import com.example.starwarsapp.common.IoDispatcher
+import com.example.starwarsapp.common.OfflineHelper
+import com.example.starwarsapp.common.OfflineHelperImpl
+import com.example.starwarsapp.common.runCatchingWithDispatcher
 import com.example.starwarsapp.network_manager.di.ApiCallbackListener
-import com.example.starwarsapp.network_manager.di.ErrorCodes
 import com.example.starwarsapp.network_manager.di.handleApiException
+import com.example.starwarsapp.network_manager.di.handleApiFailure
 import com.example.starwarsapp.network_manager.di.handleApiResponse
 import com.example.starwarsapp.room_db.database.StarWarsDatabase
-import com.example.starwarsapp.star_wars_characters.model.PeopleList
 import com.example.starwarsapp.star_wars_films.model.Film
 import com.example.starwarsapp.star_wars_films.repository.StarWarsFilmRepository
 import com.example.starwarsapp.star_wars_films.ui.state.ScreenState
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineExceptionHandler
-import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
@@ -34,7 +36,7 @@ class StarWarsFilmsViewModel @Inject constructor(
     private val application: Application,
     @IoDispatcher private val ioDispatcher: CoroutineDispatcher,
     private val db : StarWarsDatabase,
-) : ViewModel() {
+) : ViewModel(), OfflineHelper by OfflineHelperImpl() {
 
     companion object {
         private const val LIST_OF_FILMS = "list_of_films"
@@ -43,79 +45,89 @@ class StarWarsFilmsViewModel @Inject constructor(
     private val _screenState  = MutableStateFlow<ScreenState>(ScreenState.SetLoading(true))
     val screenState = _screenState.asStateFlow()
 
-    init {
-        val list = savedStateHandle?.get<ArrayList<String>>(LIST_OF_FILMS)
-        val films: ArrayList<Film> = arrayListOf()
+    private val filmUrlList = savedStateHandle?.get<ArrayList<String>>(LIST_OF_FILMS)
 
-        if(MyApplication.IS_OFFLINE) {
-            viewModelScope.launch(Dispatchers.IO) {
-                list?.forEach {
-                    val film = db.dao.getFilmByURL(it)
-                    films.add(film)
-                }
-                _screenState.value = ScreenState.FilmListState(films)
-            }
+    init {
+        if(isOffline()) {
+            loadFilmsFromOffline()
         }
         else{
-            val apiCallbackListener = object : ApiCallbackListener<Film?> {
-                override fun onApiSuccess(response: Film?) {
-                }
+            loadFilmsFromOnline()
+        }
+    }
 
-                override fun onApiFailure(message: String, code : Int?) {
-                    _screenState.value = ScreenState.ErrorState(message, code)
-                }
+    private fun loadFilmsFromOnline(){
+        val apiCallbackListener = object : ApiCallbackListener<Film?> {
+            override fun onApiSuccess(response: Film?) {
             }
 
-            viewModelScope.launch (
-                context = CoroutineExceptionHandler { _, throwable ->
-                    throwable.handleApiException(
-                        apiCallbackListener
-                    )
-                },
-                block = {
-                    withContext(Dispatchers.IO) {
-                        val responseList = arrayListOf<Response<Film?>>()
-                        list?.forEach {
-                            repository.getFilm(it).fold({response ->
-                                responseList.add(response)
-                            }, {e ->
-                                throw e
-                            })
-                        }
+            override fun onApiFailure(message: String, code : Int?) {
+                _screenState.value = ScreenState.ErrorState(message, code)
+            }
+        }
 
-                        var noFilmFound : Boolean = true;
-                        var errorMsg : String = ""
-                        var errorCode : Int? = -1
-                        var listOfFilms : ArrayList<Film> = arrayListOf()
-                        responseList.forEach {
-                            it.handleApiResponse(application, object : ApiCallbackListener<Film?> {
-                                override fun onApiSuccess(response: Film?) {
-                                    viewModelScope.launch(Dispatchers.IO) {
-                                        response?.let { it ->
-                                            noFilmFound = false
-                                            db.dao.insertFilm(it)
-                                            listOfFilms.add(it)
-                                        }
-                                    }
-                                }
+        viewModelScope.launch (
+            context = CoroutineExceptionHandler { _, throwable ->
+                throwable.handleApiException(
+                    apiCallbackListener
+                )
+            },
+            block = {
+                withContext(ioDispatcher) {
+                    val responseList = getFilmResponses().getOrNull()
+                    var noFilmFound = true
+                    var errorMsg = ""
+                    var errorCode : Int? = -1
+                    val listOfFilms : ArrayList<Film> = arrayListOf()
 
-                                override fun onApiFailure(message: String, code : Int?) {
-                                    errorMsg = message
-                                    code?.let { code -> errorCode = code }
-                                }
-                            })
+                    responseList?.forEach {
+                        if(it.isSuccessful && it.body() != null){
+                            noFilmFound = false
+                            db.dao.insertFilm(it.body()!!)
+                            listOfFilms.add(it.body()!!)
                         }
-
-                        if(noFilmFound){
-                            _screenState.value = ScreenState.ErrorState(errorMsg, errorCode)
-                        }
-                        else {
-                            _screenState.value = ScreenState.FilmListState(listOfFilms)
+                        else{
+                            errorMsg = it.message()
+                            it.code().let { code -> errorCode = code }
                         }
                     }
+
+                    if(noFilmFound){
+                        _screenState.value = ScreenState.ErrorState(errorMsg, errorCode)
+                    }
+                    else {
+                        _screenState.value = ScreenState.FilmListState(listOfFilms)
+                    }
                 }
-            )
+            }
+        )
+    }
+
+    private fun loadFilmsFromOffline(){
+        viewModelScope.launch(ioDispatcher) {
+            val films: ArrayList<Film> = arrayListOf()
+            filmUrlList?.forEach {
+                val film = db.dao.getFilmByURL(it)
+                films.add(film)
+            }
+            _screenState.value = ScreenState.FilmListState(films)
+        }
+    }
+
+    private suspend fun getFilmResponses(): Result<List<Response<Film?>>>{
+        return runCatchingWithDispatcher(ioDispatcher){
+            val responseList = arrayListOf<Response<Film?>>()
+            val subItems = filmUrlList?.map { filmUrl ->
+                viewModelScope.async { repository.getFilm(filmUrl).getOrNull() }
+            }?.awaitAll()
+            subItems?.forEach {
+                it?.let {
+                    responseList.add(it)
+                }
+            }
+            responseList
         }
     }
 
 }
+

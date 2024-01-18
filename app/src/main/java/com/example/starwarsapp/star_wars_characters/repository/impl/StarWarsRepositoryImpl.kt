@@ -15,7 +15,7 @@ class StarWarsRepositoryImpl @Inject constructor(
     @IoDispatcher private val ioDispatcher: CoroutineDispatcher,
 ): StarWarsRepository {
     override suspend fun getAllStarWarsCharacters(pageNo : Int) : Result<Response<PeopleList?>> {
-        Log.d("Deepali", "API Fetched $pageNo")
+        Log.d("Api Calls", "API Fetched $pageNo")
         return runCatchingWithDispatcher(ioDispatcher){
              apiInterface.getAllPeople(pageNo)
         }
