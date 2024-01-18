@@ -4,6 +4,7 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.Toast
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
 import androidx.lifecycle.lifecycleScope
@@ -53,6 +54,9 @@ class StarWarsFilmsFragment : Fragment() {
                             progress.visibility = View.GONE
                         }
                         adapter?.updateList(it.filmList)
+                        if(it.filmList.isEmpty()){
+                            Toast.makeText(activity, "No items found", Toast.LENGTH_SHORT).show()
+                        }
                     }
                     is ScreenState.SetLoading -> {
                         binding.apply {
@@ -68,7 +72,11 @@ class StarWarsFilmsFragment : Fragment() {
                     }
 
                     is ScreenState.ErrorState -> {
-
+                        binding.apply {
+                            recyclerView.visibility = View.VISIBLE
+                            progress.visibility = View.GONE
+                        }
+                        Toast.makeText(activity, it.msg, Toast.LENGTH_SHORT).show()
                     }
                 }
             }

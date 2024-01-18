@@ -22,10 +22,12 @@ class FilmsRecyclerAdapter(
 
     override fun onBindViewHolder(holder: FilmViewHolder, position: Int) {
         holder.binding.apply {
-            charName.text = filmList[position].title
-            charGender.text = filmList[position].releaseDate
-            if(!filmList[position].title.isNullOrEmpty()){
-                characterInitial.text = filmList[position].title?.get(0)?.uppercase()
+            filmList.getOrNull(holder.adapterPosition)?.let {film ->
+                charName.text = film.title
+                charGender.text = film.releaseDate
+                if(!film.title.isNullOrEmpty()){
+                    characterInitial.text = film.title[0].uppercase()
+                }
             }
         }
     }

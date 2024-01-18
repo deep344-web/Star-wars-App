@@ -20,5 +20,5 @@ interface StarWarsDao {
     @Insert
     suspend fun insertFilm(film: Film)
     @Query("SELECT * FROM films WHERE url = :filmURL")
-    suspend fun getFilmByURL(filmURL : String) : Film
+    suspend fun getFilmByURL(filmURL : String) : Film?
 }

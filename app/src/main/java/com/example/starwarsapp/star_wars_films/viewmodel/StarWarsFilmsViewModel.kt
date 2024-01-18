@@ -107,8 +107,9 @@ class StarWarsFilmsViewModel @Inject constructor(
         viewModelScope.launch(ioDispatcher) {
             val films: ArrayList<Film> = arrayListOf()
             filmUrlList?.forEach {
-                val film = db.dao.getFilmByURL(it)
-                films.add(film)
+                db.dao.getFilmByURL(it)?.let {film ->
+                    films.add(film)
+                }
             }
             _screenState.value = ScreenState.FilmListState(films)
         }
