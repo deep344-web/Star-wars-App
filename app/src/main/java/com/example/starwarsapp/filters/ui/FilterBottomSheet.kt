@@ -26,8 +26,8 @@ class FilterBottomSheet : BottomSheetDialogFragment() {
         binding = FilterBottomSheetBinding.inflate(inflater, container, false)
 
         binding.name.isChecked = filterResponse?.sortBy == SortBy.NAME
-        binding.checkboxMale.isChecked = filterResponse?.filterFemale == true
-        binding.checkboxFemale.isChecked = filterResponse?.filterMale == true
+        binding.checkboxMale.isChecked = filterResponse?.filterMale == true
+        binding.checkboxFemale.isChecked = filterResponse?.filterFemale == true
 
         binding.name.setOnCheckedChangeListener { _, isChecked ->
             if(isChecked)

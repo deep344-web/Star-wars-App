@@ -1,12 +1,11 @@
 package com.example.starwarsapp.star_wars_characters.adapter
 
-import People
+import com.example.starwarsapp.star_wars_characters.model.People
 import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import androidx.appcompat.widget.AppCompatTextView
-import androidx.cardview.widget.CardView
 import androidx.recyclerview.widget.RecyclerView
 import com.example.starwarsapp.R
 import com.google.android.material.card.MaterialCardView

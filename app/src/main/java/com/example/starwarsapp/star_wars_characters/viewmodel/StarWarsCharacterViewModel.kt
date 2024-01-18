@@ -1,70 +1,97 @@
 package com.example.starwarsapp.star_wars_characters.viewmodel
 
-import People
+import android.app.Application
 import android.util.Log
+import com.example.starwarsapp.star_wars_characters.model.People
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.starwarsapp.MyApplication
 import com.example.starwarsapp.filters.model.FilterResponse
 import com.example.starwarsapp.filters.model.SortBy
-import com.example.starwarsapp.network_manager.ConnectivityObserver
-import com.example.starwarsapp.network_manager.NetworkConnectivityObserver
-import com.example.starwarsapp.room_db.StarWarsDao
+import com.example.starwarsapp.network_manager.di.ApiCallbackListener
+import com.example.starwarsapp.network_manager.di.ErrorCodes
+import com.example.starwarsapp.network_manager.di.handleApiException
+import com.example.starwarsapp.network_manager.di.handleApiResponse
+import com.example.starwarsapp.room_db.database.StarWarsDatabase
+import com.example.starwarsapp.star_wars_characters.model.PeopleList
+import com.example.starwarsapp.star_wars_characters.model.ScreenState
 import com.example.starwarsapp.star_wars_characters.repository.StarWarsRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
 @HiltViewModel
 class StarWarsCharacterViewModel @Inject constructor(
     private val starWarsRepository: StarWarsRepository,
-    private val networkConnectivityObserver: NetworkConnectivityObserver,
-    private val dao: StarWarsDao
+    private val db : StarWarsDatabase,
+    private val application: Application
 ): ViewModel() {
 
     var page : Int = 1
 
-    private val _screenState = MutableStateFlow<ArrayList<People>>(arrayListOf())
+    private val _screenState = MutableStateFlow<ScreenState>(ScreenState.ScreenUI(loading = true))
     val screenState = _screenState.asStateFlow()
 
     private val _filterResponse = MutableStateFlow(FilterResponse(sortBy = null, filterFemale = true, filterMale = true, filterOthers = true))
     val filterResponse = _filterResponse.asStateFlow()
 
     init {
+        getCharacters()
+    }
+
+    private fun getCharactersFromRoom(){
         viewModelScope.launch(Dispatchers.IO) {
-            networkConnectivityObserver.observe().collectLatest {
-                when(it){
-                    ConnectivityObserver.Status.AVAILABLE -> {
-                        getCharacters()
-                    }
-                    ConnectivityObserver.Status.UNAVAILABLE -> {
-                        viewModelScope.launch(Dispatchers.IO) {
-                            dao.getAllCharacters()
-                        }
-                    }
-                    ConnectivityObserver.Status.LOST -> {
-                    }
-                }
-                Log.d("Internet Status :", it.toString())
-            }
+            val list = db.dao.getAllCharacters()
+            _screenState.value = ScreenState.Response(ArrayList(list), MyApplication.IS_OFFLINE)
         }
     }
 
     private fun getCharacters(){
-        viewModelScope.launch(Dispatchers.IO) {
-            val response = starWarsRepository.getAllStarWarsCharacters(page)
-            response.body()?.results?.let { newCharacters ->
-                _screenState.update {
-                    val oldList = _screenState.value.clone() as ArrayList<People>
-                    oldList.addAll(newCharacters)
-                    applySortingLogic(oldList)
+        val apiCallbackListener = object : ApiCallbackListener<PeopleList?>{
+            override fun onApiSuccess(response: PeopleList?) {
+                viewModelScope.launch(Dispatchers.IO) {
+                    Log.d("characters count", db.dao.getAllCharacters().size.toString())
+                    Log.d("characters count", response?.results?.size.toString())
+
+                    response?.results?.forEach{
+                        db.dao.insertCharacter(it)
+                    }
+                    val list = db.dao.getAllCharacters()
+                    Log.d("characters count", db.dao.getAllCharacters().size.toString())
+
+                    _screenState.value = ScreenState.Response(applySortingLogic(ArrayList(list)), MyApplication.IS_OFFLINE)
+                }
+            }
+
+            override fun onApiFailure(message: String, code : Int?) {
+                if(code == ErrorCodes.INTERNET_ERROR.value || code == ErrorCodes.TIME_OUT.value){
+                    MyApplication.IS_OFFLINE = true
+                    getCharactersFromRoom()
+                }
+                else{
+                    _screenState.value = ScreenState.ErrorState(message, code)
+
                 }
             }
         }
+
+        viewModelScope.launch (
+            context = CoroutineExceptionHandler { _, throwable ->
+                throwable.handleApiException(
+                    apiCallbackListener
+                )
+            },
+            block = {
+                withContext(Dispatchers.IO) {
+                    starWarsRepository.getAllStarWarsCharacters(page).handleApiResponse(application, apiCallbackListener)
+                }
+            }
+        )
     }
 
     private fun applySortingLogic(list : ArrayList<People>) : ArrayList<People>{
@@ -89,21 +116,31 @@ class StarWarsCharacterViewModel @Inject constructor(
     }
 
     fun loadNextPage(){
-        page++
-        getCharacters()
+        if(!MyApplication.IS_OFFLINE) {
+            page++
+            _screenState.value = ScreenState.ScreenUI(loading = true)
+            getCharacters()
+        }
     }
 
     fun updateFilterResponse(filterResponse : FilterResponse){
         _filterResponse.value = filterResponse
+        _screenState.value = ScreenState.ScreenUI(loading = true)
         updateUI()
+    }
+
+    private fun deleteAllData(){
+        if(page == 1) {
+            viewModelScope.launch(Dispatchers.IO) {
+                db.dao.deleteAllData()
+            }
+        }
     }
 
     private fun updateUI(){
         viewModelScope.launch(Dispatchers.Default) {
-            _screenState.update {
-                val oldList = _screenState.value.clone() as ArrayList<People>
-                applySortingLogic(oldList)
-            }
+            val list = db.dao.getAllCharacters()
+            _screenState.value = ScreenState.Response(applySortingLogic(ArrayList(list)), MyApplication.IS_OFFLINE)
         }
     }
 }

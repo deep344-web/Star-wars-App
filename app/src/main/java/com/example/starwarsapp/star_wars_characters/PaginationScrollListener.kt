@@ -1,5 +1,6 @@
 package com.example.starwarsapp.star_wars_characters
 
+import android.util.Log
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 
@@ -11,7 +12,7 @@ abstract class PaginationScrollListener(private val layoutManager: GridLayoutMan
         val visibleItemCount = layoutManager.childCount
         val totalItemCount = layoutManager.itemCount
         val firstVisibleItemPosition = layoutManager.findFirstVisibleItemPosition()
-        if ((visibleItemCount + firstVisibleItemPosition) >= totalItemCount
+        if (visibleItemCount + firstVisibleItemPosition >= totalItemCount
             && firstVisibleItemPosition >= 0) {
             loadMoreItems();
         }

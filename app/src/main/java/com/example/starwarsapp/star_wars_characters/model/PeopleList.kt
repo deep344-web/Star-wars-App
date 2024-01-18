@@ -1,6 +1,5 @@
 package com.example.starwarsapp.star_wars_characters.model
 
-import People
 import com.google.gson.annotations.SerializedName
 
 

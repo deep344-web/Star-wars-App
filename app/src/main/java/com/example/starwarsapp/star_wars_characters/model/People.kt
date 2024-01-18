@@ -1,20 +1,22 @@
+package com.example.starwarsapp.star_wars_characters.model
+
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 import com.google.gson.annotations.SerializedName
 
-@Entity
-class People : Cloneable{
+@Entity(tableName = "people")
+data class People(
 
     @PrimaryKey(autoGenerate = true)
-    val id : Int = 0
+    val id : Int = 0,
 
     @SerializedName("name")
-    var name: String? = null
+    var name: String? = null,
 
 //    @SerializedName("birth_year")
 //    var birthYear: String? = null
 
-    var gender: String? = null
+    var gender: String? = null,
 
 //    @SerializedName("hair_color")
 //    var hairColor: String? = null
@@ -49,4 +51,4 @@ class People : Cloneable{
 //
 //    @SerializedName("vehicles")
 //    var vehiclesUrls: ArrayList<String>? = null
-}
+)
