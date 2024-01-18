@@ -6,18 +6,24 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.starwarsapp.filters.model.FilterResponse
 import com.example.starwarsapp.filters.model.SortBy
+import com.example.starwarsapp.network_manager.ConnectivityObserver
+import com.example.starwarsapp.network_manager.NetworkConnectivityObserver
+import com.example.starwarsapp.room_db.StarWarsDao
 import com.example.starwarsapp.star_wars_characters.repository.StarWarsRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @HiltViewModel
 class StarWarsCharacterViewModel @Inject constructor(
-    private val starWarsRepository: StarWarsRepository
+    private val starWarsRepository: StarWarsRepository,
+    private val networkConnectivityObserver: NetworkConnectivityObserver,
+    private val dao: StarWarsDao
 ): ViewModel() {
 
     var page : Int = 1
@@ -29,7 +35,23 @@ class StarWarsCharacterViewModel @Inject constructor(
     val filterResponse = _filterResponse.asStateFlow()
 
     init {
-        getCharacters()
+        viewModelScope.launch(Dispatchers.IO) {
+            networkConnectivityObserver.observe().collectLatest {
+                when(it){
+                    ConnectivityObserver.Status.AVAILABLE -> {
+                        getCharacters()
+                    }
+                    ConnectivityObserver.Status.UNAVAILABLE -> {
+                        viewModelScope.launch(Dispatchers.IO) {
+                            dao.getAllCharacters()
+                        }
+                    }
+                    ConnectivityObserver.Status.LOST -> {
+                    }
+                }
+                Log.d("Internet Status :", it.toString())
+            }
+        }
     }
 
     private fun getCharacters(){
