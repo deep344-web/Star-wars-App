@@ -11,7 +11,3 @@ data class FilterResponse(
     val filterFemale : Boolean = false,
     val filterOthers : Boolean = false
 ) : Parcelable
-
-enum class SortBy(val value: String) {
-    NAME("Name"),
-}

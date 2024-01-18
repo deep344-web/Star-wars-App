@@ -12,9 +12,9 @@ import com.google.android.material.bottomsheet.BottomSheetDialogFragment
 
 class FilterBottomSheet : BottomSheetDialogFragment() {
 
-    private lateinit var binding : FilterBottomSheetBinding
-    private var sortBy : SortBy? = null
+    private var binding : FilterBottomSheetBinding? = null
     private var filterResponse : FilterResponse? = null
+    private var sortBy : SortBy? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -22,31 +22,33 @@ class FilterBottomSheet : BottomSheetDialogFragment() {
             filterResponse = it.getParcelable("filter_selected")
         }
     }
-    override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
+
+    override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View? {
         binding = FilterBottomSheetBinding.inflate(inflater, container, false)
 
-        binding.name.isChecked = filterResponse?.sortBy == SortBy.NAME
-        binding.checkboxMale.isChecked = filterResponse?.filterMale == true
-        binding.checkboxFemale.isChecked = filterResponse?.filterFemale == true
+        binding?.apply {
+            name.isChecked = filterResponse?.sortBy == SortBy.NAME
+            checkboxMale.isChecked = filterResponse?.filterMale == true
+            name.isChecked = filterResponse?.sortBy == SortBy.NAME
+            checkboxFemale.isChecked = filterResponse?.filterFemale == true
 
-        binding.name.setOnCheckedChangeListener { _, isChecked ->
-            if(isChecked)
-                sortBy = SortBy.NAME
+            name.setOnCheckedChangeListener { _, isChecked ->
+                if(isChecked)
+                    this@FilterBottomSheet.sortBy = SortBy.NAME
+            }
+            applyButton.setOnClickListener{
+                filterResponse = FilterResponse(this@FilterBottomSheet.sortBy, checkboxMale.isChecked,
+                    checkboxFemale.isChecked,
+                    checkboxOthers.isChecked)
+                findNavController().previousBackStackEntry?.savedStateHandle?.set("filter_response", filterResponse)
+                findNavController().popBackStack()
+            }
+            cancelButton.setOnClickListener {
+                findNavController().popBackStack()
+            }
         }
 
-        binding.applyButton.setOnClickListener{
-            filterResponse = FilterResponse(sortBy, binding.checkboxMale.isChecked,
-                binding.checkboxFemale.isChecked,
-                binding.checkboxOthers.isChecked)
-            findNavController().previousBackStackEntry?.savedStateHandle?.set("filter_response", filterResponse)
-            findNavController().popBackStack()
-        }
 
-        binding.cancelButton.setOnClickListener {
-            findNavController().popBackStack()
-        }
-
-
-        return binding.root
+        return binding?.root
     }
 }

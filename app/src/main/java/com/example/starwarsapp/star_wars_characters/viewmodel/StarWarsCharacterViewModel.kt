@@ -46,7 +46,7 @@ class StarWarsCharacterViewModel @Inject constructor(
     val filterResponse = _filterResponse.asStateFlow()
 
     init {
-        getCharacters()
+        getCharacters(true)
     }
 
     private fun getCharactersFromRoom(){
@@ -56,10 +56,10 @@ class StarWarsCharacterViewModel @Inject constructor(
         }
     }
 
-    private fun getCharacters(){
+    private fun getCharacters(firstCall : Boolean){
         val apiCallbackListener = object : ApiCallbackListener<PeopleList?>{
             override fun onApiSuccess(response: PeopleList?) {
-                onAPISuccess(response)
+                onAPISuccess(response, firstCall)
             }
 
             override fun onApiFailure(message: String, code : Int?) {
@@ -91,8 +91,11 @@ class StarWarsCharacterViewModel @Inject constructor(
         )
     }
 
-    private fun onAPISuccess(response: PeopleList?){
+    private fun onAPISuccess(response: PeopleList?, firstCall: Boolean){
         viewModelScope.launch(ioDispatcher) {
+            if(firstCall) {
+                db.dao.deleteAllData()
+            }
             response?.results?.forEach{
                 db.dao.insertCharacter(it)
             }
@@ -123,10 +126,10 @@ class StarWarsCharacterViewModel @Inject constructor(
     }
 
     fun loadNextPage(){
-        if(isOffline()) {
+        if(!isOffline()) {
             page++
             _screenState.value = ScreenState.ScreenUI(loading = true)
-            getCharacters()
+            getCharacters(false)
         }
     }
 
