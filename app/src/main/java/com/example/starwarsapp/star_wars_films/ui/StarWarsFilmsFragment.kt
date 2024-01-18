@@ -54,11 +54,21 @@ class StarWarsFilmsFragment : Fragment() {
                         }
                         adapter?.updateList(it.filmList)
                     }
-                    ScreenState.SetLoading -> {
+                    is ScreenState.SetLoading -> {
                         binding.apply {
-                            recyclerView.visibility = View.GONE
-                            progress.visibility = View.VISIBLE
+                            if(it.isLoading) {
+                                recyclerView.visibility = View.GONE
+                                progress.visibility = View.VISIBLE
+                            }
+                            else{
+                                recyclerView.visibility = View.VISIBLE
+                                progress.visibility = View.GONE
+                            }
                         }
+                    }
+
+                    is ScreenState.ErrorState -> {
+
                     }
                 }
             }

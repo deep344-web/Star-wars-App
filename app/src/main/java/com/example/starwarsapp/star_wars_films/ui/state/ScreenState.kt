@@ -7,5 +7,7 @@ import com.example.starwarsapp.star_wars_films.model.Film
  */
 sealed class ScreenState {
     data class FilmListState(val filmList: ArrayList<Film>) : ScreenState()
-    data object SetLoading : ScreenState()
+    data class ErrorState(val msg : String, val code : Int?) : ScreenState()
+
+    data class SetLoading(val isLoading : Boolean) : ScreenState()
 }

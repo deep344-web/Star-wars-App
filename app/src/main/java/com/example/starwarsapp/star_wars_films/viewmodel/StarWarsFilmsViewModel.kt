@@ -24,6 +24,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import retrofit2.Response
 import javax.inject.Inject
 
 @HiltViewModel
@@ -36,40 +37,32 @@ class StarWarsFilmsViewModel @Inject constructor(
 ) : ViewModel() {
 
     companion object {
-    private const val LIST_OF_FILMS = "list_of_films"
-}
+        private const val LIST_OF_FILMS = "list_of_films"
+    }
 
-    private val _screenState  = MutableStateFlow<ScreenState>(ScreenState.SetLoading)
+    private val _screenState  = MutableStateFlow<ScreenState>(ScreenState.SetLoading(true))
     val screenState = _screenState.asStateFlow()
 
     init {
         val list = savedStateHandle?.get<ArrayList<String>>(LIST_OF_FILMS)
         val films: ArrayList<Film> = arrayListOf()
+
         if(MyApplication.IS_OFFLINE) {
             viewModelScope.launch(Dispatchers.IO) {
                 list?.forEach {
                     val film = db.dao.getFilmByURL(it)
                     films.add(film)
                 }
+                _screenState.value = ScreenState.FilmListState(films)
             }
-            _screenState.value = ScreenState.FilmListState(films)
         }
         else{
             val apiCallbackListener = object : ApiCallbackListener<Film?> {
                 override fun onApiSuccess(response: Film?) {
-                    viewModelScope.launch(Dispatchers.IO) {
-                        response?.let {
-                            db.dao.insertFilm(it)
-                        }
-                        val list = db.dao.getAllCharacters()
-                        Log.d("characters count", db.dao.getAllCharacters().size.toString())
-
-                        _screenState.value = ScreenState.FilmListState(films)
-                    }
                 }
 
                 override fun onApiFailure(message: String, code : Int?) {
-
+                    _screenState.value = ScreenState.ErrorState(message, code)
                 }
             }
 
@@ -81,10 +74,43 @@ class StarWarsFilmsViewModel @Inject constructor(
                 },
                 block = {
                     withContext(Dispatchers.IO) {
+                        val responseList = arrayListOf<Response<Film?>>()
                         list?.forEach {
-                            repository.getFilm(it).getOrNull()?.handleApiResponse(
-                                application = application,
-                                apiCallbackListener)
+                            repository.getFilm(it).fold({response ->
+                                responseList.add(response)
+                            }, {e ->
+                                throw e
+                            })
+                        }
+
+                        var noFilmFound : Boolean = true;
+                        var errorMsg : String = ""
+                        var errorCode : Int? = -1
+                        var listOfFilms : ArrayList<Film> = arrayListOf()
+                        responseList.forEach {
+                            it.handleApiResponse(application, object : ApiCallbackListener<Film?> {
+                                override fun onApiSuccess(response: Film?) {
+                                    viewModelScope.launch(Dispatchers.IO) {
+                                        response?.let { it ->
+                                            noFilmFound = false
+                                            db.dao.insertFilm(it)
+                                            listOfFilms.add(it)
+                                        }
+                                    }
+                                }
+
+                                override fun onApiFailure(message: String, code : Int?) {
+                                    errorMsg = message
+                                    code?.let { code -> errorCode = code }
+                                }
+                            })
+                        }
+
+                        if(noFilmFound){
+                            _screenState.value = ScreenState.ErrorState(errorMsg, errorCode)
+                        }
+                        else {
+                            _screenState.value = ScreenState.FilmListState(listOfFilms)
                         }
                     }
                 }

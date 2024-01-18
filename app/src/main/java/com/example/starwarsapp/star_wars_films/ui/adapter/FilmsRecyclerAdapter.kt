@@ -9,7 +9,7 @@ import com.example.starwarsapp.star_wars_films.model.Film
 
 
 class FilmsRecyclerAdapter(
-    private var filmList : ArrayList<Film>
+        private var filmList : ArrayList<`Film`>
 ) : RecyclerView.Adapter<FilmViewHolder>() {
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): FilmViewHolder {
