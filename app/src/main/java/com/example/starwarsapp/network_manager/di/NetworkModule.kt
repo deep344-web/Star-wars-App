@@ -1,4 +1,4 @@
-package com.example.starwarsapp.network_manager
+package com.example.starwarsapp.network_manager.di
 
 import dagger.Module
 import dagger.Provides
@@ -11,14 +11,16 @@ import javax.inject.Singleton
 
 @Module
 @InstallIn(SingletonComponent::class)
-class NetworkModule {
+internal class NetworkModule {
+    companion object{
+        private const val NIA_BASE_URL = "https://swapi.dev/api/"
+    }
 
     @Provides
     @Singleton
-    fun provideRetrofitInstance() : Retrofit{
-        val BASE_URL = "https://swapi.dev/api/"
+    fun provideNetworkInstance() : Retrofit{
         return Retrofit.Builder()
-            .baseUrl(BASE_URL)
+            .baseUrl(NIA_BASE_URL)
             .addConverterFactory(GsonConverterFactory.create())
             .build()
     }

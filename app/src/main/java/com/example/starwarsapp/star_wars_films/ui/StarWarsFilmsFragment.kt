@@ -6,24 +6,25 @@ import android.view.View
 import android.view.ViewGroup
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
-import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
-import androidx.lifecycle.repeatOnLifecycle
 import androidx.recyclerview.widget.GridLayoutManager
+import com.example.starwarsapp.common.launchWhenStarted
 import com.example.starwarsapp.databinding.FragmentStarWarsFilmsBinding
-import com.example.starwarsapp.star_wars_films.adapter.FilmsRecyclerAdapter
-import com.example.starwarsapp.star_wars_films.model.ScreenState
+import com.example.starwarsapp.star_wars_films.ui.adapter.FilmsRecyclerAdapter
+import com.example.starwarsapp.star_wars_films.ui.state.ScreenState
 import com.example.starwarsapp.star_wars_films.viewmodel.StarWarsFilmsViewModel
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.launch
 
 @AndroidEntryPoint
 class StarWarsFilmsFragment : Fragment() {
     private lateinit var binding: FragmentStarWarsFilmsBinding
     private val viewModel by viewModels<StarWarsFilmsViewModel>()
+    private var adapter : FilmsRecyclerAdapter? = null
 
-    private lateinit var adapter : FilmsRecyclerAdapter
+    companion object{
+        private const val COLUMN_SPAN = 2
+    }
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -33,38 +34,31 @@ class StarWarsFilmsFragment : Fragment() {
         binding = FragmentStarWarsFilmsBinding.inflate(inflater, container, false)
 
         adapter = FilmsRecyclerAdapter(arrayListOf())
-        val layoutManager = GridLayoutManager(activity, 2)
-        binding.recyclerView.layoutManager = layoutManager
-        binding.recyclerView.adapter = adapter
-
-//        binding.recyclerView.addOnScrollListener(object : PaginationScrollListener(layoutManager){
-//            override fun loadMoreItems() {
-//                binding.recyclerView.visibility = View.GONE
-//                binding.progress.visibility = View.VISIBLE
-//                viewModel.loadNextPage()
-//            }
-//
-////            override val isLastPage: Boolean
-////                get() = TODO("Not yet implemented")
-////            override val isLoading: Boolean
-////                get() = TODO("Not yet implemented")
-//
-//        })
-
+        binding.apply {
+            recyclerView.layoutManager = GridLayoutManager(activity, COLUMN_SPAN)
+            recyclerView.adapter = adapter
+        }
         initListeners()
-
         return binding.root
     }
 
 
     private fun initListeners(){
-        lifecycleScope.launch {
-            repeatOnLifecycle(Lifecycle.State.STARTED){
-                viewModel.screenState.collectLatest {
-                    if(it is ScreenState.FilmListState){
-                        binding.recyclerView.visibility = View.VISIBLE
-                        binding.progress.visibility = View.GONE
-                        adapter.updateList(it.filmList)
+        launchWhenStarted(lifecycleScope){
+            viewModel.screenState.collectLatest {
+                when(it){
+                    is ScreenState.FilmListState -> {
+                        binding.apply {
+                            recyclerView.visibility = View.VISIBLE
+                            progress.visibility = View.GONE
+                        }
+                        adapter?.updateList(it.filmList)
+                    }
+                    ScreenState.SetLoading -> {
+                        binding.apply {
+                            recyclerView.visibility = View.GONE
+                            progress.visibility = View.VISIBLE
+                        }
                     }
                 }
             }

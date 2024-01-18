@@ -1,6 +1,8 @@
 package com.example.starwarsapp.star_wars_characters.ui
 
+import People
 import android.os.Bundle
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -13,9 +15,9 @@ import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.GridLayoutManager
 import com.example.starwarsapp.R
 import com.example.starwarsapp.databinding.FragmentStarWarsCharactersBinding
+import com.example.starwarsapp.filters.model.FilterResponse
 import com.example.starwarsapp.star_wars_characters.PaginationScrollListener
 import com.example.starwarsapp.star_wars_characters.adapter.CharactersRecyclerAdapter
-import com.example.starwarsapp.star_wars_characters.model.ScreenState
 import com.example.starwarsapp.star_wars_characters.viewmodel.StarWarsCharacterViewModel
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.flow.collectLatest
@@ -54,16 +56,15 @@ class StarWarsCharactersFragment : Fragment() {
                 binding.progress.visibility = View.VISIBLE
                 viewModel.loadNextPage()
             }
-
-//            override val isLastPage: Boolean
-//                get() = TODO("Not yet implemented")
-//            override val isLoading: Boolean
-//                get() = TODO("Not yet implemented")
-
         })
 
         binding.filterIcon.setOnClickListener{
-            findNavController().navigate(R.id.action_starWarsCharactersFragment_to_filterBottomSheet)
+            val bundle = Bundle()
+            bundle.putParcelable("filter_selected", viewModel.filterResponse.value)
+            findNavController().navigate(R.id.action_starWarsCharactersFragment_to_filterBottomSheet, bundle)
+            findNavController().currentBackStackEntry?.savedStateHandle?.getLiveData<FilterResponse>("filter_response")?.observe(viewLifecycleOwner) {
+                    result -> viewModel.updateFilterResponse(result)
+            }
         }
 
         initListeners()
@@ -76,11 +77,9 @@ class StarWarsCharactersFragment : Fragment() {
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED){
                 viewModel.screenState.collectLatest {
-                    if(it is ScreenState.PeopleListState){
-                        binding.recyclerView.visibility = View.VISIBLE
-                        binding.progress.visibility = View.GONE
-                        adapter.updateList(it.peopleList.results)
-                    }
+//                    binding.recyclerView.visibility = View.VISIBLE
+//                    binding.progress.visibility = View.GONE
+                    adapter.updateList(it)
                 }
             }
         }

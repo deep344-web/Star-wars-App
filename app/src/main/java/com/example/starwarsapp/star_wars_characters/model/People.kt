@@ -1,6 +1,6 @@
 import com.google.gson.annotations.SerializedName
 
-class People {
+class People : Cloneable{
 
     @SerializedName("name")
     var name: String? = null

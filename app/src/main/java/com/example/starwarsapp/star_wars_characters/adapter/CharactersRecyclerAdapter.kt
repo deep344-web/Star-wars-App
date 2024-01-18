@@ -1,6 +1,7 @@
 package com.example.starwarsapp.star_wars_characters.adapter
 
 import People
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -37,8 +38,9 @@ class CharactersRecyclerAdapter(
 
     fun updateList(newList : ArrayList<People>?){
         newList?.let {
-//            list.clear()
+            list.clear()
             list.addAll(newList)
+            Log.d("", list.toString())
             notifyDataSetChanged()
         }
     }
